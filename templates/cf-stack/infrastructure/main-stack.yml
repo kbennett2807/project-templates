@@ -61,7 +61,7 @@ Resources:
       Stages:
       - Name: Source
         Actions:        
-          - Name: Fetch Source
+          - Name: FetchSource
             ActionTypeId:
               Category: Source
               Owner: ThirdParty
@@ -77,7 +77,7 @@ Resources:
             RunOrder: 1
       - Name: Stack
         Actions:
-        - Name: Deploy Stack
+        - Name: DeployStack
           ActionTypeId:
             Category: Deploy
             Owner: AWS

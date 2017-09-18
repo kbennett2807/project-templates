@@ -264,7 +264,7 @@ Resources:
       Stages:
       - Name: Source
         Actions:        
-          - Name: Fetch Source
+          - Name: FetchSource
             ActionTypeId:
               Category: Source
               Owner: ThirdParty
@@ -280,7 +280,7 @@ Resources:
             RunOrder: 1
       - Name: Stack
         Actions:
-        - Name: Deploy Main Stack
+        - Name: DeployMainStack
           ActionTypeId:
             Category: Deploy
             Owner: AWS
@@ -298,7 +298,7 @@ Resources:
           RunOrder: 1
       - Name: Build
         Actions:        
-          - Name: Test and Build Docker Image
+          - Name: TestAndBuildDockerImage
             ActionTypeId:
               Category: Build
               Owner: AWS
@@ -313,7 +313,7 @@ Resources:
             RunOrder: 1
       - Name: Staging
         Actions:
-          - Name: Deploy Environment
+          - Name: DeployEnvironment
             ActionTypeId:
               Category: Deploy
               Owner: AWS
@@ -329,7 +329,7 @@ Resources:
               TemplatePath: 'ApplicationSource::infrastructure/environment.yml'
               ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
             RunOrder: 1                                    
-          - Name: Deploy Application
+          - Name: DeployApplication
             ActionTypeId:
               Category: Deploy
               Owner: AWS
@@ -341,7 +341,7 @@ Resources:
               ApplicationName: !Ref Application
               EnvironmentName: !Sub '${AWS::StackName}-staging'
             RunOrder: 2             
-          - Name: Run Acceptance Tests
+          - Name: RunAcceptanceTests
             ActionTypeId:
               Category: Build
               Owner: AWS
@@ -354,7 +354,7 @@ Resources:
             RunOrder: 3
       - Name: QA
         Actions:        
-          - Name: Manual Approval
+          - Name: ManualApproval
             ActionTypeId:
               Category: Approval
               Owner: AWS
@@ -365,7 +365,7 @@ Resources:
             RunOrder: 1
       - Name: Production
         Actions:
-          - Name: Deploy Environment
+          - Name: DeployEnvironment
             ActionTypeId:
               Category: Deploy
               Owner: AWS
@@ -381,7 +381,7 @@ Resources:
               TemplatePath: 'ApplicationSource::infrastructure/environment.yml'
               ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
             RunOrder: 1                                    
-          - Name: Deploy Application
+          - Name: DeployApplication
             ActionTypeId:
               Category: Deploy
               Owner: AWS
@@ -393,7 +393,7 @@ Resources:
               ApplicationName: !Ref Application
               EnvironmentName: !Sub '${AWS::StackName}-production'
             RunOrder: 2
-          - Name: Run Acceptance Tests
+          - Name: RunAcceptanceTests
             ActionTypeId:
               Category: Test
               Owner: AWS
