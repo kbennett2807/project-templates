@@ -1,4 +1,4 @@
-#Application Templates
+# Project Templates
 
 Automatically create 
 
