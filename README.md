@@ -10,7 +10,7 @@ Automatically create
 * [Java](https://www.java.com/en/download/help/download_options.xml)
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/installing.html) with administrator privileges
 * [Github.com account](https://github.com) with a personal token setup that full permissions on 'repo' and 'admin:repo_hook' and push permission to account repos from the command line.
-* [curl] (https://curl.haxx.se/)
+* [curl](https://curl.haxx.se/)
  	 
 
 ## Usage
