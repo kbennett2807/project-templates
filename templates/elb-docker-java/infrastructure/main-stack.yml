@@ -1,0 +1,406 @@
+---
+Description: 'Main Stack'
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:  
+  GitHubOwner:
+    Description: The GitHub owner/account name
+    Type: String
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+  GitHubToken:
+    Description: The GitHub token with full permissions for repo and admin:repo_hook
+    Type: String
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+    NoEcho: true
+Resources:
+  ArtifactsBucket:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    DeletionPolicy: Retain
+    Type: 'AWS::S3::Bucket'
+  ArtifactsRepository:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    DeletionPolicy: Retain
+    Type: 'AWS::ECR::Repository'
+    Properties: 
+      RepositoryName: !Sub '${AWS::StackName}' 
+  CodePipelineRole:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'codepipeline.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+      - 'arn:aws:iam::aws:policy/AdministratorAccess'
+  CloudFormationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'cloudformation.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+      - 'arn:aws:iam::aws:policy/AdministratorAccess'
+  BuildDockerCodeBuildRole:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'codebuild.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: ServiceRole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Sid: CloudWatchLogsPolicy
+            Effect: Allow
+            Action: 
+            - 'logs:CreateLogGroup'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: '*'
+          - Sid: CodeCommitPolicy
+            Effect: Allow
+            Action: 'codecommit:GitPull'
+            Resource: '*'
+          - Sid: S3GetObjectPolicy
+            Effect: Allow
+            Action: 
+            - 's3:GetObject'
+            - 's3:GetObjectVersion'
+            Resource: '*'
+          - Sid: S3PutObjectPolicy
+            Effect: 'Allow'
+            Action: 's3:PutObject'
+            Resource: '*'
+          - Sid: ECR
+            Effect: 'Allow'
+            Action: 'ecr:GetAuthorizationToken'
+            Resource: '*'
+          - Sid: ECRRepo
+            Effect: 'Allow'
+            Action:
+            - 'ecr:BatchCheckLayerAvailability'
+            - 'ecr:CompleteLayerUpload'
+            - 'ecr:InitiateLayerUpload'
+            - 'ecr:PutImage'
+            - 'ecr:UploadLayerPart'
+            Resource: !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ArtifactsRepository}'
+  RunAcceptanceCodeBuildRole:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'codebuild.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      Policies:
+      - PolicyName: ServiceRole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Sid: CloudWatchLogsPolicy
+            Effect: Allow
+            Action: 
+            - 'logs:CreateLogGroup'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: '*'
+          - Sid: CodeCommitPolicy
+            Effect: Allow
+            Action: 'codecommit:GitPull'
+            Resource: '*'
+          - Sid: S3GetObjectPolicy
+            Effect: Allow
+            Action: 
+            - 's3:GetObject'
+            - 's3:GetObjectVersion'
+            Resource: '*'
+          - Sid: S3PutObjectPolicy
+            Effect: 'Allow'
+            Action: 's3:PutObject'
+            Resource: '*'
+      - PolicyName: CloudFormation
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Sid: CloudFormation
+            Effect: Allow
+            Action: 
+            - 'cloudformation:DescribeStacks'
+            Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}-staging/*'
+  ManualApprovalTopic:
+    DependsOn: CloudFormationRole
+    Type: "AWS::SNS::Topic"
+    Properties: 
+      DisplayName: !Sub '${AWS::StackName} Manual Approval Notification'
+  Application:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Sub '${AWS::StackName}'              
+  TestAndBuildDockerImageProject:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/docker:1.12.1
+        Type: LINUX_CONTAINER
+      Name: !Sub '${AWS::StackName}-build'      
+      ServiceRole: !Ref BuildDockerCodeBuildRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec:  !Sub |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - apt-get update -y
+                - apt-get install -y software-properties-common
+                - add-apt-repository ppa:openjdk-r/ppa
+                - apt-get update -y
+                - apt-get install -y openjdk-8-jdk                
+            build:
+              commands:
+                - chmod +x gradlew
+                - ./gradlew clean buildDocker buildDockerAwsJson              
+            post_build:
+              commands:
+                - eval $(aws ecr get-login)
+                - build_tag=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ArtifactsRepository}:${!CODEBUILD_BUILD_ID#*:}
+                - docker tag ${ArtifactsRepository}:latest ${!build_tag} 
+                - docker push ${!build_tag}
+          artifacts:
+            files:
+            - build/docker/Dockerrun.aws.json
+            discard-paths: yes
+      TimeoutInMinutes: 10
+  RunAcceptanceTestsStagingProject:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-acceptance-test-staging'
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/java:openjdk-8
+        Type: LINUX_CONTAINER
+      ServiceRole: !Ref RunAcceptanceCodeBuildRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec:  !Sub |
+          version: 0.2
+          phases:                            
+            build:
+              commands:
+                - chmod +x gradlew
+                - server_host=`aws cloudformation describe-stacks --stack-name ${AWS::StackName}-staging --query "Stacks[0].Outputs[?OutputKey=='URL'].OutputValue" --output text`                 
+                - ./gradlew clean acceptanceTest -Dserver.port=80 -Dserver.host=${!server_host}                                    
+      TimeoutInMinutes: 10
+  RunAcceptanceTestsProductionProject:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-acceptance-test-production'
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/java:openjdk-8
+        Type: LINUX_CONTAINER            
+      ServiceRole: !Ref RunAcceptanceCodeBuildRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec:  !Sub |
+          version: 0.2
+          phases:                            
+            build:
+              commands:
+                - chmod +x gradlew
+                - server_host=`aws cloudformation describe-stacks --stack-name ${AWS::StackName}-production --query "Stacks[0].Outputs[?OutputKey=='URL'].OutputValue" --output text`                 
+                - ./gradlew clean acceptanceTest -Dserver.port=80 -Dserver.host=${!server_host}                                    
+      TimeoutInMinutes: 10
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: 
+    - CloudFormationRole # make sure that CloudFormationRole is deleted last
+    - CodePipelineRole
+    - Application
+    - TestAndBuildDockerImageProject
+    Properties:
+      Name: !Sub '${AWS::StackName}'
+      RoleArn: !GetAtt 'CodePipelineRole.Arn'
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactsBucket
+      Stages:
+      - Name: Source
+        Actions:        
+          - Name: Fetch Source
+            ActionTypeId:
+              Category: Source
+              Owner: ThirdParty
+              Version: '1'
+              Provider: GitHub
+            OutputArtifacts:
+            - Name: ApplicationSource
+            Configuration:
+              Owner: !Ref GitHubOwner
+              Repo: !Sub '${AWS::StackName}'
+              Branch: 'master'
+              OAuthToken: !Ref GitHubToken
+            RunOrder: 1
+      - Name: Stack
+        Actions:
+        - Name: Deploy Main Stack
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          InputArtifacts:
+          - Name: ApplicationSource
+          Configuration:
+            ActionMode: CREATE_UPDATE
+            Capabilities: CAPABILITY_IAM
+            RoleArn: !GetAtt 'CloudFormationRole.Arn'
+            StackName: !Ref 'AWS::StackName'
+            TemplatePath: 'ApplicationSource::infrastructure/pipeline.yml'
+            ParameterOverrides: !Sub '{"GitHubOwner": "${GitHubOwner}", "GitHubToken": "${GitHubToken}"}'
+          RunOrder: 1
+      - Name: Build
+        Actions:        
+          - Name: Test and Build Docker Image
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            InputArtifacts:
+            - Name: ApplicationSource
+            OutputArtifacts:
+            - Name: DockerAwsJson
+            Configuration:
+              ProjectName: !Ref TestAndBuildDockerImageProject
+            RunOrder: 1
+      - Name: Staging
+        Actions:
+          - Name: Deploy Environment
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Provider: CloudFormation
+              Version: 1
+            InputArtifacts:
+            - Name: ApplicationSource          
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              Capabilities: CAPABILITY_IAM
+              RoleArn: !GetAtt 'CloudFormationRole.Arn'
+              StackName: !Sub '${AWS::StackName}-staging'
+              TemplatePath: 'ApplicationSource::infrastructure/environment.yml'
+              ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
+            RunOrder: 1                                    
+          - Name: Deploy Application
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: ElasticBeanstalk
+            InputArtifacts:
+            - Name: DockerAwsJson                              
+            Configuration:
+              ApplicationName: !Ref Application
+              EnvironmentName: !Sub '${AWS::StackName}-staging'
+            RunOrder: 2             
+          - Name: Run Acceptance Tests
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            InputArtifacts:
+            - Name: ApplicationSource            
+            Configuration:
+              ProjectName: !Ref RunAcceptanceTestsStagingProject
+            RunOrder: 3
+      - Name: QA
+        Actions:        
+          - Name: Manual Approval
+            ActionTypeId:
+              Category: Approval
+              Owner: AWS
+              Version: '1'
+              Provider: Manual            
+            Configuration:
+              NotificationArn: !Ref ManualApprovalTopic                          
+            RunOrder: 1
+      - Name: Production
+        Actions:
+          - Name: Deploy Environment
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Provider: CloudFormation
+              Version: 1
+            InputArtifacts:
+            - Name: ApplicationSource          
+            Configuration:
+              ActionMode: CREATE_UPDATE
+              Capabilities: CAPABILITY_IAM
+              RoleArn: !GetAtt 'CloudFormationRole.Arn'
+              StackName: !Sub '${AWS::StackName}-production'
+              TemplatePath: 'ApplicationSource::infrastructure/environment.yml'
+              ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
+            RunOrder: 1                                    
+          - Name: Deploy Application
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: ElasticBeanstalk
+            InputArtifacts:
+            - Name: DockerAwsJson                              
+            Configuration:
+              ApplicationName: !Ref Application
+              EnvironmentName: !Sub '${AWS::StackName}-production'
+            RunOrder: 2
+          - Name: Run Acceptance Tests
+            ActionTypeId:
+              Category: Test
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            InputArtifacts:
+            - Name: ApplicationSource            
+            Configuration:
+              ProjectName: !Ref RunAcceptanceTestsProductionProject
+            RunOrder: 3

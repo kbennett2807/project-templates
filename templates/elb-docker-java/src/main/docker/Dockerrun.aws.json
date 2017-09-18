@@ -1,0 +1,12 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "AWS_ACCOUNT_ID.dkr.ecr.AWS_REGION.amazonaws.com/PROJECT_NAME:@CODEBUILD_BUILD_ID@",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": "8080"
+    }
+  ]
+}

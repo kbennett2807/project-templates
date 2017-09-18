@@ -1,0 +1,106 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+buildscript {
+	repositories {
+		jcenter()
+
+		dependencies {
+			classpath("org.springframework.boot:spring-boot-gradle-plugin:1.4.0.RELEASE")
+			classpath('se.transmode.gradle:gradle-docker:1.2')
+		}
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'idea'
+
+jar {
+	baseName = 'PROJECT_NAME'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+apply plugin: 'spring-boot'
+
+bootRun {
+	addResources = false
+	main = 'com.acme.Application'
+}
+
+sourceSets {
+	acceptanceTest {
+		java {
+			compileClasspath += main.output + test.output
+			runtimeClasspath += main.output + test.output
+			srcDir file('src/acceptanceTest/java')
+		}
+		resources.srcDir file('src/acceptanceTest/resources')
+	}
+}
+
+task acceptanceTest(type: Test, description: 'Runs the acceptance tests.', group: 'Verification') {
+	testClassesDir = sourceSets.acceptanceTest.output.classesDir
+	classpath = sourceSets.acceptanceTest.runtimeClasspath
+	systemProperties = [
+		'server.host': System.getProperty('server.host'),
+		'server.port': System.getProperty('server.port'),
+		'server.path': System.getProperty('server.path')
+	]
+}
+
+configurations {
+		acceptanceTestCompile.extendsFrom testCompile
+		acceptanceTestRuntime.extendsFrom testRuntime
+	}
+
+apply plugin: 'docker'
+
+task buildDocker(type: Docker, dependsOn: build) {
+	push = false
+	applicationName = 'PROJECT_NAME'
+	dockerfile = file('src/main/docker/Dockerfile')
+	doFirst {
+		copy {
+			from jar
+			into stageDir
+		}
+	}
+}
+
+
+task buildDockerAwsJson(type: Copy) {
+	from 'src/main/docker/Dockerrun.aws.json'
+	into 'build/docker/'
+
+	def codebuild_id = System.getenv().CODEBUILD_BUILD_ID ?: "local:build"
+	filter(ReplaceTokens, tokens: [CODEBUILD_BUILD_ID: codebuild_id.split(':')[1]])
+}
+
+
+repositories {
+	jcenter()
+	maven {
+		url 'https://repo.spring.io/libs-release'
+	}
+
+}
+
+dependencies {
+	compile("org.springframework.boot:spring-boot-starter-web")
+	compile("org.springframework.boot:spring-boot-devtools")
+	compile("org.springframework.boot:spring-boot-starter-data-rest")
+	compile("org.springframework.boot:spring-boot-starter-data-jpa")
+	compile("com.h2database:h2")
+	compile 'org.slf4j:slf4j-api:1.7.21'
+	compile group: 'com.google.guava', name: 'guava', version: '19.0'
+
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+	testCompile 'junit:junit:4.12'
+
+	acceptanceTestCompile 'io.rest-assured:rest-assured:3.0.3'
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = '2.7'
+}

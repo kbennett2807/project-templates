@@ -1,0 +1,95 @@
+---
+Description: 'Stack'
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:  
+  GitHubOwner:
+    Description: The GitHub owner/account name
+    Type: String
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+  GitHubToken:
+    Description: The GitHub token with full permissions for repo and admin:repo_hook
+    Type: String
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+    NoEcho: true
+Resources: 
+  CodePipelineRole:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'codepipeline.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+      - 'arn:aws:iam::aws:policy/AdministratorAccess'
+  CloudFormationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - 'cloudformation.amazonaws.com'
+          Action:
+          - 'sts:AssumeRole'
+      ManagedPolicyArns:
+      - 'arn:aws:iam::aws:policy/AdministratorAccess'
+  ArtifactsBucket:
+    DependsOn: CloudFormationRole # make sure that CloudFormationRole is deleted last
+    DeletionPolicy: Retain
+    Type: 'AWS::S3::Bucket'
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: 
+    - CloudFormationRole # make sure that CloudFormationRole is deleted last
+    - CodePipelineRole    
+    Properties:
+      Name: !Sub '${AWS::StackName}'
+      RoleArn: !GetAtt 'CodePipelineRole.Arn'
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactsBucket
+      Stages:
+      - Name: Source
+        Actions:        
+          - Name: Fetch Source
+            ActionTypeId:
+              Category: Source
+              Owner: ThirdParty
+              Version: '1'
+              Provider: GitHub
+            OutputArtifacts:
+            - Name: ApplicationSource
+            Configuration:
+              Owner: !Ref GitHubOwner
+              Repo: !Sub '${AWS::StackName}'
+              Branch: 'master'
+              OAuthToken: !Ref GitHubToken
+            RunOrder: 1
+      - Name: Stack
+        Actions:
+        - Name: Deploy Stack
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          InputArtifacts:
+          - Name: ApplicationSource
+          Configuration:
+            ActionMode: CREATE_UPDATE
+            Capabilities: CAPABILITY_IAM
+            RoleArn: !GetAtt 'CloudFormationRole.Arn'
+            StackName: !Ref 'AWS::StackName'
+            TemplatePath: 'ApplicationSource::infrastructure/main-stack.yml'
+            ParameterOverrides: !Sub '{"GitHubOwner": "${GitHubOwner}", "GitHubToken": "${GitHubToken}"}'
+          RunOrder: 1      

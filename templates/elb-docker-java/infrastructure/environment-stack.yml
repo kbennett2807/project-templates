@@ -1,0 +1,96 @@
+---
+Description: 'Environment'
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:  
+  ApplicationName:
+    Description: The application name
+    Type: String
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+Resources:  
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: !Sub '${AWS::StackName}-ec2-policy'          
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:GetAuthorizationToken
+            - ecr:BatchCheckLayerAvailability
+            - ecr:GetDownloadUrlForLayer
+            - ecr:GetRepositoryPolicy
+            - ecr:DescribeRepositories
+            - ecr:ListImages
+            - ecr:BatchGetImage
+            Resource: "*"
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn:
+    - EC2Role
+    Properties:
+      Path: "/"
+      Roles: 
+      - !Ref EC2Role           
+  InitialPlaceholderApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion    
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      Description: !Sub 'Initial Placeholder Application Version for ${AWS::StackName}'        
+      SourceBundle:
+        S3Bucket: !Sub 'elasticbeanstalk-samples-${AWS::Region}'          
+        S3Key: docker-sample-v3.zip
+  ConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    DependsOn:
+    - EC2InstanceProfile
+    Properties:
+      ApplicationName: !Ref ApplicationName                      
+      OptionSettings:
+#      - Namespace: aws:autoscaling:asg
+#        OptionName: MinSize
+#        Value: '1'
+#      - Namespace: aws:autoscaling:asg
+#        OptionName: MaxSize
+#        Value: '1'
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        #Value: LoadBalanced
+        Value: SingleInstance      
+      - OptionName: InstanceType
+        Namespace: aws:autoscaling:launchconfiguration
+        Value: t2.micro
+      - OptionName: IamInstanceProfile
+        Namespace: aws:autoscaling:launchconfiguration
+        Value: !Ref EC2InstanceProfile
+      - OptionName: DeploymentPolicy
+        Namespace: aws:elasticbeanstalk:command
+        #Value: RollingWithAdditionalBatch
+        Value: Rolling
+      SolutionStackName: 64bit Amazon Linux 2017.03 v2.7.0 running Docker 17.03.1-ce
+  Environment:
+    Type: AWS::ElasticBeanstalk::Environment
+    DependsOn:
+    - ConfigurationTemplate
+    - InitialPlaceholderApplicationVersion
+    Properties:
+      EnvironmentName: !Sub '${AWS::StackName}'      
+      ApplicationName: !Ref  ApplicationName              
+      TemplateName: !Ref ConfigurationTemplate        
+      VersionLabel: !Ref InitialPlaceholderApplicationVersion
+Outputs:  
+  URL:
+    Description: 'URL to Elastic Beanstalk Environment.'
+    Value: !Sub 'http://${Environment.EndpointURL}'
+    Export:
+      Name: !Sub '${AWS::StackName}-URL'
