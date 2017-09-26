@@ -77,7 +77,7 @@ Resources:
         Namespace: aws:elasticbeanstalk:command
         #Value: RollingWithAdditionalBatch
         Value: Rolling
-      SolutionStackName: 64bit Amazon Linux 2017.03 v2.7.0 running Docker 17.03.1-ce
+      SolutionStackName: 64bit Amazon Linux 2017.03 v2.7.4 running Docker 17.03.2-ce
   Environment:
     Type: AWS::ElasticBeanstalk::Environment
     DependsOn:
