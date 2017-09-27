@@ -58,16 +58,6 @@ if [ -z "$template_name" ] || [ -z "$project_name" ] || [ -z "$git_hub_token" ]
     exit 1
 fi
 
-echo $template_name
-echo $project_name
-echo $git_hub_token
-
-echo $git_hub_account_name
-echo $git_hub_org_name
-echo $git_hub_team_id
-echo $private_repo
-
-
 . templates/$template_name.properties
 
 cp -R templates/$template_name ../$project_name
@@ -96,9 +86,9 @@ done
 
 if [ "$git_hub_account_name" ]
   then
-	curl -X POST -u "$git_hub_account_name:$git_hub_token" https://api.github.com/user/repos -d '{"name":"'"$project_name"'", "private":"'"$private_repo"'"}'  
+	curl -X POST -u "$git_hub_account_name:$git_hub_token" https://api.github.com/user/repos -d '{"name":"'"$project_name"'", "private":'$private_repo'}'  
 else
-	curl -X POST -u ":$git_hub_token" https://api.github.com/orgs/$git_hub_org_name/repos -d '{"name":"'"$project_name"'", "private":"'"$private_repo"'"}'
+	curl -X POST -u ":$git_hub_token" https://api.github.com/orgs/$git_hub_org_name/repos -d '{"name":"'"$project_name"'", "private":'$private_repo'}'
 	if [ "$git_hub_team_id" ]
 	  then
 		curl -X PUT -u ":$git_hub_token" https://api.github.com/teams/$git_hub_team_id/repos/$git_hub_org_name/$project_name -d '{"permission":"admin"}'  	
