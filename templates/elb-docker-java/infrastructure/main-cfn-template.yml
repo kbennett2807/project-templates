@@ -293,7 +293,7 @@ Resources:
             Capabilities: CAPABILITY_IAM
             RoleArn: !GetAtt 'CloudFormationRole.Arn'
             StackName: !Ref 'AWS::StackName'
-            TemplatePath: 'ApplicationSource::infrastructure/main-stack.yml'
+            TemplatePath: 'ApplicationSource::infrastructure/main-cfn-template.yml'
             ParameterOverrides: !Sub '{"GitHubOwner": "${GitHubOwner}", "GitHubToken": "${GitHubToken}"}'
           RunOrder: 1
       - Name: Build
@@ -326,7 +326,7 @@ Resources:
               Capabilities: CAPABILITY_IAM
               RoleArn: !GetAtt 'CloudFormationRole.Arn'
               StackName: !Sub '${AWS::StackName}-staging'
-              TemplatePath: 'ApplicationSource::infrastructure/environment-stack.yml'
+              TemplatePath: 'ApplicationSource::infrastructure/environment-cfn-template.yml'
               ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
             RunOrder: 1                                    
           - Name: DeployApplication
@@ -378,7 +378,7 @@ Resources:
               Capabilities: CAPABILITY_IAM
               RoleArn: !GetAtt 'CloudFormationRole.Arn'
               StackName: !Sub '${AWS::StackName}-production'
-              TemplatePath: 'ApplicationSource::infrastructure/environment-stack.yml'
+              TemplatePath: 'ApplicationSource::infrastructure/environment-cfn-template.yml'
               ParameterOverrides: !Sub '{"ApplicationName": "${Application}"}'                    
             RunOrder: 1                                    
           - Name: DeployApplication

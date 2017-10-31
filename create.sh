@@ -121,7 +121,7 @@ fi
 echo "Creating CloudFormation stack"
 if [ "$aws_profile_name" ]
   then
-	aws cloudformation create-stack --stack-name ${project_name} --template-body file://infrastructure/main-stack.yml --region ${aws_region} --parameters ParameterKey=GitHubOwner,ParameterValue=$git_owner ParameterKey=GitHubToken,ParameterValue=$git_hub_token --capabilities CAPABILITY_IAM  --profile $aws_profile_name  
+	aws cloudformation create-stack --stack-name ${project_name} --template-body file://infrastructure/main-cfn-template.yml --region ${aws_region} --parameters ParameterKey=GitHubOwner,ParameterValue=$git_owner ParameterKey=GitHubToken,ParameterValue=$git_hub_token --capabilities CAPABILITY_IAM  --profile $aws_profile_name  
 else
-	aws cloudformation create-stack --stack-name ${project_name} --template-body file://infrastructure/main-stack.yml --region ${aws_region} --parameters ParameterKey=GitHubOwner,ParameterValue=$git_owner ParameterKey=GitHubToken,ParameterValue=$git_hub_token --capabilities CAPABILITY_IAM	
+	aws cloudformation create-stack --stack-name ${project_name} --template-body file://infrastructure/main-cfn-template.yml --region ${aws_region} --parameters ParameterKey=GitHubOwner,ParameterValue=$git_owner ParameterKey=GitHubToken,ParameterValue=$git_hub_token --capabilities CAPABILITY_IAM	
 fi
